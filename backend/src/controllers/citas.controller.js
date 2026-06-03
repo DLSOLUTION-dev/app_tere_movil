@@ -334,14 +334,14 @@ const cancelarCita = async (req, res) => {
       dateStyle: 'medium'
     })
 
-    for (const c of citasInteresadas) {
-      await enviarNotificacion(
+    await Promise.all(citasInteresadas.map(c =>
+      enviarNotificacion(
         c.clienteId,
         '¡Horario disponible!',
         `Se liberó el horario de las ${horaLibre} del ${fechaLibre}. ¡Puedes agendarlo!`,
         'RECORDATORIO'
       )
-    }
+    ))
 
     return ok(res, { mensaje: 'Cita cancelada exitosamente' })
   } catch (e) {
