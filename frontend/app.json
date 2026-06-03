@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Tere Móvil",
+    "slug": "tere-movil",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.teremovil.app"
+    },
+    "android": {
+      "package": "com.teremovil.app"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "scheme": "tere-movil",
+    "extra": {
+      "eas": {
+        "projectId": "3e400a8e-d154-41ce-b58d-67b76ebb4ed6"
+      }
+    }
+  }
+}

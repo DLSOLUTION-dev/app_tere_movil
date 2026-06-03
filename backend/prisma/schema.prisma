@@ -1,0 +1,210 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  CLIENTE
+  ADMIN
+}
+
+enum EstadoCita {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  CANCELADA
+  COMPLETADA
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+}
+
+enum EstadoPago {
+  PAGADO
+  PENDIENTE
+}
+
+enum TipoNotificacion {
+  RECORDATORIO
+  CONFIRMACION
+  CANCELACION
+  REPROGRAMACION
+}
+
+enum TipoMovimiento {
+  INGRESO
+  EGRESO
+}
+
+model Usuario {
+  id           String   @id @default(uuid())
+  nombre       String
+  apellido     String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  telefono     String?
+  rol          Rol      @default(CLIENTE)
+  activo       Boolean  @default(true)
+  fcmToken     String?  @map("fcm_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  citasComoCliente   Cita[]         @relation("CitasCliente")
+  citasComoEstilista Cita[]         @relation("CitasEstilista")
+  fichas             FichaCliente[]
+  notificaciones     Notificacion[]
+  deudas             Deudor[]
+  facturas           Factura[]
+
+  @@map("usuarios")
+}
+
+model Servicio {
+  id          String  @id @default(uuid())
+  nombre      String
+  descripcion String?
+  duracionMin Int     @map("duracion_min")
+  activo      Boolean @default(true)
+
+  citas Cita[]
+
+  @@map("servicios")
+}
+
+model Cita {
+  id          String     @id @default(uuid())
+  clienteId   String     @map("cliente_id")
+  servicioId  String     @map("servicio_id")
+  estilistaId String     @map("estilista_id")
+  fechaHora   DateTime   @map("fecha_hora")
+  estado      EstadoCita @default(PENDIENTE)
+  notas       String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  cliente   Usuario  @relation("CitasCliente",   fields: [clienteId],   references: [id])
+  estilista Usuario  @relation("CitasEstilista",  fields: [estilistaId], references: [id])
+  servicio  Servicio @relation(fields: [servicioId], references: [id])
+  factura   Factura?
+
+  @@map("citas")
+}
+
+model FichaCliente {
+  id            String   @id @default(uuid())
+  clienteId     String   @map("cliente_id")
+  tipoCabello   String   @map("tipo_cabello")
+  colorActual   String?  @map("color_actual")
+  formulaUsada  String?  @map("formula_usada")
+  observaciones String?
+  fecha         DateTime @default(now())
+
+  cliente Usuario @relation(fields: [clienteId], references: [id])
+
+  @@map("fichas_cliente")
+}
+
+model Factura {
+  id            String     @id @default(uuid())
+  citaId        String     @unique @map("cita_id")
+  clienteId     String     @map("cliente_id")
+  numeroFactura String     @unique @map("numero_factura")
+  subtotal      Decimal    @db.Decimal(10, 2)
+  iva           Decimal    @db.Decimal(10, 2)
+  total         Decimal    @db.Decimal(10, 2)
+  metodoPago    MetodoPago @map("metodo_pago")
+  estadoPago    EstadoPago @default(PAGADO) @map("estado_pago")
+  fechaEmision  DateTime   @default(now()) @map("fecha_emision")
+
+  cita           Cita            @relation(fields: [citaId],     references: [id])
+  cliente        Usuario         @relation(fields: [clienteId],  references: [id])
+  movimientoCaja MovimientoCaja?
+
+  @@map("facturas")
+}
+
+model Notificacion {
+  id        String           @id @default(uuid())
+  usuarioId String           @map("usuario_id")
+  titulo    String
+  mensaje   String
+  tipo      TipoNotificacion
+  leida     Boolean          @default(false)
+  enviadaAt DateTime         @default(now()) @map("enviada_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("notificaciones")
+}
+
+model Deudor {
+  id          String    @id @default(uuid())
+  clienteId   String    @map("cliente_id")
+  monto       Decimal   @db.Decimal(10, 2)
+  descripcion String
+  pagado      Boolean   @default(false)
+  fechaDeuda  DateTime  @default(now()) @map("fecha_deuda")
+  fechaPago   DateTime? @map("fecha_pago")
+
+  cliente Usuario @relation(fields: [clienteId], references: [id])
+
+  @@map("deudores")
+}
+
+model MovimientoCaja {
+  id          String         @id @default(uuid())
+  tipo        TipoMovimiento
+  monto       Decimal        @db.Decimal(10, 2)
+  descripcion String
+  facturaId   String?        @unique @map("factura_id")
+  fecha       DateTime       @default(now())
+
+  factura Factura? @relation(fields: [facturaId], references: [id])
+
+  @@map("movimientos_caja")
+}
+model CierreCaja {
+  id               String   @id @default(uuid())
+  fecha            DateTime @default(now())
+  saldoInicial     Decimal  @db.Decimal(10, 2) @map("saldo_inicial")
+  totalIngresos    Decimal  @db.Decimal(10, 2) @map("total_ingresos")
+  totalEgresos     Decimal  @db.Decimal(10, 2) @map("total_egresos")
+  totalDisponible  Decimal  @db.Decimal(10, 2) @map("total_disponible")
+  retiroTerasa     Decimal  @db.Decimal(10, 2) @map("retiro_teresa") @default(0)
+  saldoFinal       Decimal  @db.Decimal(10, 2) @map("saldo_final")
+  notas            String?
+  creadoAt         DateTime @default(now()) @map("creado_at")
+
+  @@map("cierres_caja")
+}
+
+model TrabajoRealizado {
+  id            String   @id @default(uuid())
+  titulo        String
+  descripcion   String?
+  antesBase64   String   @db.Text @map("antes_base64")
+  despuesBase64 String   @db.Text @map("despues_base64")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("trabajos_realizados")
+}
+
+model InfoSalon {
+  id        String   @id @default(uuid())
+  vision    String?  @db.Text
+  mision    String?  @db.Text
+  contacto  String?
+  horarios  Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("info_salon")
+}
+
