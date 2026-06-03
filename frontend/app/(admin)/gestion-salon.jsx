@@ -13,7 +13,7 @@ import { COLORS } from '../../constants/colors'
 import LoadingScreen from '../../components/shared/LoadingScreen'
 
 const TABS = ['Info salón', 'Horarios', 'Trabajos']
-const FORM_VACIO = { id: null, titulo: '', descripcion: '', antesBase64: null, despuesBase64: null }
+const FORM_VACIO = { id: null, titulo: '', descripcion: '', antesBase64: null, despuesBase64: null, antesUrl: null, despuesUrl: null }
 const DIAS_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const HORARIOS_DEFAULT = { diasTrabajo: [2, 3, 4, 5, 6], manaInicio: '09:00', manaFin: '13:00', tardeInicio: '15:00', tardeFin: '19:00' }
 
@@ -117,8 +117,10 @@ export default function GestionSalon() {
       id: trabajo.id,
       titulo: trabajo.titulo,
       descripcion: trabajo.descripcion || '',
-      antesBase64: trabajo.antesBase64,
-      despuesBase64: trabajo.despuesBase64,
+      antesBase64: null,
+      despuesBase64: null,
+      antesUrl: trabajo.antesUrl,
+      despuesUrl: trabajo.despuesUrl,
     })
     setModal(true)
   }
@@ -353,7 +355,7 @@ export default function GestionSalon() {
                   <View style={styles.imagenBox}>
                     <Text style={styles.imagenLabel}>Antes</Text>
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${item.antesBase64}` }}
+                      source={{ uri: item.antesUrl }}
                       style={styles.imagenMiniatura}
                       resizeMode="cover"
                     />
@@ -361,7 +363,7 @@ export default function GestionSalon() {
                   <View style={styles.imagenBox}>
                     <Text style={styles.imagenLabel}>Después</Text>
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${item.despuesBase64}` }}
+                      source={{ uri: item.despuesUrl }}
                       style={styles.imagenMiniatura}
                       resizeMode="cover"
                     />
@@ -418,9 +420,9 @@ export default function GestionSalon() {
                   style={styles.pickerBtn}
                   onPress={() => pickImage('antes')}
                 >
-                  {form.antesBase64 ? (
+                  {(form.antesBase64 || form.antesUrl) ? (
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${form.antesBase64}` }}
+                      source={{ uri: form.antesBase64 ? `data:image/jpeg;base64,${form.antesBase64}` : form.antesUrl }}
                       style={styles.pickerPreview}
                       resizeMode="cover"
                     />
@@ -439,9 +441,9 @@ export default function GestionSalon() {
                   style={styles.pickerBtn}
                   onPress={() => pickImage('despues')}
                 >
-                  {form.despuesBase64 ? (
+                  {(form.despuesBase64 || form.despuesUrl) ? (
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${form.despuesBase64}` }}
+                      source={{ uri: form.despuesBase64 ? `data:image/jpeg;base64,${form.despuesBase64}` : form.despuesUrl }}
                       style={styles.pickerPreview}
                       resizeMode="cover"
                     />

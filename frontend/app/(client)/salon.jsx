@@ -104,7 +104,7 @@ export default function SalonScreen() {
                   <View style={styles.imagenBox}>
                     <Text style={styles.imagenLabel}>Antes</Text>
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${t.antesBase64}` }}
+                      source={{ uri: t.antesUrl }}
                       style={styles.imagen}
                       resizeMode="cover"
                     />
@@ -112,7 +112,7 @@ export default function SalonScreen() {
                   <View style={styles.imagenBox}>
                     <Text style={styles.imagenLabel}>Después</Text>
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${t.despuesBase64}` }}
+                      source={{ uri: t.despuesUrl }}
                       style={styles.imagen}
                       resizeMode="cover"
                     />

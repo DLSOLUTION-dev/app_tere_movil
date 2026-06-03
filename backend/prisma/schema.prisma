@@ -186,13 +186,13 @@ model CierreCaja {
 }
 
 model TrabajoRealizado {
-  id            String   @id @default(uuid())
-  titulo        String
-  descripcion   String?
-  antesBase64   String   @db.Text @map("antes_base64")
-  despuesBase64 String   @db.Text @map("despues_base64")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  titulo      String
+  descripcion String?
+  antesUrl    String   @map("antes_url")
+  despuesUrl  String   @map("despues_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("trabajos_realizados")
 }
