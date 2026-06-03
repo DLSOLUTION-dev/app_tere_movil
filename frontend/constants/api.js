@@ -5,6 +5,8 @@ export const ENDPOINTS = {
   REGISTRO: '/auth/registro',
   LOGIN: '/auth/login',
   FCM_TOKEN: '/auth/fcm-token',
+  PERFIL: '/auth/perfil',
+  CAMBIAR_PASSWORD: '/auth/cambiar-password',
   // Citas
   CITAS: '/citas',
   // Servicios

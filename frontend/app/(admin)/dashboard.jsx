@@ -46,11 +46,8 @@ export default function Dashboard() {
                         })}
                     </Text>
                 </View>
-                <TouchableOpacity onPress={async () => {
-                    await logout()
-                    router.replace('/(auth)/login')
-                }}>
-                    <Ionicons name="log-out-outline" size={26} color={COLORS.textMuted} />
+                <TouchableOpacity onPress={() => router.push('/(admin)/perfil')}>
+                    <Ionicons name="person-circle-outline" size={32} color={COLORS.textMuted} />
                 </TouchableOpacity>
             </View>
 

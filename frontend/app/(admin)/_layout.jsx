@@ -77,6 +77,10 @@ export default function AdminLayout() {
                 name="cliente/[id]"
                 options={{ href: null }}
             />
+            <Tabs.Screen
+                name="perfil"
+                options={{ href: null }}
+            />
         </Tabs>
 
     )

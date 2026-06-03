@@ -71,4 +71,51 @@ const guardarFcmToken = async (req, res) => {
   }
 }
 
-module.exports = { registro, login, guardarFcmToken }
+// GET /api/auth/perfil
+const obtenerPerfil = async (req, res) => {
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.usuario.id },
+      select: { id: true, nombre: true, apellido: true, email: true, telefono: true, rol: true, createdAt: true },
+    })
+    if (!usuario) return error(res, 'Usuario no encontrado', 404)
+    return ok(res, usuario)
+  } catch (e) {
+    console.error(e)
+    return error(res, 'Error al obtener perfil')
+  }
+}
+
+// PUT /api/auth/perfil
+const actualizarPerfil = async (req, res) => {
+  try {
+    const { nombre, apellido, telefono } = req.body
+    const usuario = await prisma.usuario.update({
+      where: { id: req.usuario.id },
+      data: { nombre, apellido, telefono: telefono || null },
+      select: { id: true, nombre: true, apellido: true, email: true, telefono: true, rol: true },
+    })
+    return ok(res, usuario)
+  } catch (e) {
+    console.error(e)
+    return error(res, 'Error al actualizar perfil')
+  }
+}
+
+// PUT /api/auth/cambiar-password
+const cambiarPassword = async (req, res) => {
+  try {
+    const { passwordActual, passwordNuevo } = req.body
+    const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario.id } })
+    const valido = await bcrypt.compare(passwordActual, usuario.passwordHash)
+    if (!valido) return error(res, 'La contraseña actual es incorrecta', 400)
+    const passwordHash = await bcrypt.hash(passwordNuevo, 10)
+    await prisma.usuario.update({ where: { id: req.usuario.id }, data: { passwordHash } })
+    return ok(res, { mensaje: 'Contraseña actualizada correctamente' })
+  } catch (e) {
+    console.error(e)
+    return error(res, 'Error al cambiar contraseña')
+  }
+}
+
+module.exports = { registro, login, guardarFcmToken, obtenerPerfil, actualizarPerfil, cambiarPassword }

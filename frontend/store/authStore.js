@@ -52,6 +52,15 @@ const useAuthStore = create((set) => ({
     }
   },
 
+  actualizarUsuario: async (datos) => {
+    set((state) => ({ usuario: { ...state.usuario, ...datos } }))
+    const usuarioStr = await SecureStore.getItemAsync('usuario')
+    if (usuarioStr) {
+      const u = JSON.parse(usuarioStr)
+      await SecureStore.setItemAsync('usuario', JSON.stringify({ ...u, ...datos }))
+    }
+  },
+
   cargarSesion: async () => {
     try {
       const token = await SecureStore.getItemAsync('token')

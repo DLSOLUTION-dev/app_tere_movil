@@ -1,6 +1,6 @@
 const router = require('express').Router()
 const { body } = require('express-validator')
-const { registro, login, guardarFcmToken } = require('../controllers/auth.controller')
+const { registro, login, guardarFcmToken, obtenerPerfil, actualizarPerfil, cambiarPassword } = require('../controllers/auth.controller')
 const { autenticar } = require('../middlewares/auth.middleware')
 const { validar } = require('../middlewares/validar.middleware')
 const { crearLimitador } = require('../middlewares/rateLimiter.middleware')
@@ -29,5 +29,18 @@ router.post('/login',
 )
 
 router.put('/fcm-token', autenticar, guardarFcmToken)
+
+router.get('/perfil', autenticar, obtenerPerfil)
+
+router.put('/perfil', autenticar, [
+  body('nombre').notEmpty().withMessage('Nombre requerido'),
+  body('apellido').notEmpty().withMessage('Apellido requerido'),
+  body('telefono').optional({ checkFalsy: true }).isMobilePhone().withMessage('Teléfono inválido'),
+], validar, actualizarPerfil)
+
+router.put('/cambiar-password', autenticar, [
+  body('passwordActual').notEmpty().withMessage('Contraseña actual requerida'),
+  body('passwordNuevo').isLength({ min: 8, max: 72 }).withMessage('La nueva contraseña debe tener entre 8 y 72 caracteres'),
+], validar, cambiarPassword)
 
 module.exports = router
