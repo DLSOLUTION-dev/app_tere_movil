@@ -15,4 +15,6 @@ export const ENDPOINTS = {
   CLIENTES: '/clientes',
   FACTURAS: '/facturas',
   DEUDORES: '/deudores',
+  NOTIFICACIONES: '/notificaciones/mias',
+  NOTIF_LEER_TODAS: '/notificaciones/leer-todas',
 }

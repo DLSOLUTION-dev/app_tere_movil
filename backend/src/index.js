@@ -57,6 +57,7 @@ app.use('/api/caja', require('./routes/caja.routes'))
 app.use('/api/cierre-caja', require('./routes/cierreCaja.routes'))
 app.use('/api/trabajos', require('./routes/trabajos.routes'))
 app.use('/api/info-salon', require('./routes/infoSalon.routes'))
+app.use('/api/notificaciones', require('./routes/notificaciones.routes'))
 
 // ── Health check ──
 app.get('/health', (req, res) => res.json({ status: 'ok', app: 'Tere Móvil API' }))
