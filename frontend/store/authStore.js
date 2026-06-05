@@ -70,8 +70,8 @@ const useAuthStore = create((set) => ({
 
       const usuario = JSON.parse(usuarioStr)
       set({ token, usuario })
+      registrarNotificaciones()
     } catch {
-      // Si algo falla limpiamos la sesión
       await SecureStore.deleteItemAsync('token')
       await SecureStore.deleteItemAsync('usuario')
     }
