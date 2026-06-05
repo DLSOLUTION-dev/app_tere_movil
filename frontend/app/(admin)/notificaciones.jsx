@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -25,16 +25,20 @@ export default function NotificacionesAdmin() {
     const router = useRouter()
     const [notificaciones, setNotificaciones] = useState([])
     const [cargando, setCargando] = useState(true)
+    const cargadoUnaVez = useRef(false)
 
     useFocusEffect(useCallback(() => { cargarDatos() }, []))
 
     const cargarDatos = async () => {
-        setCargando(true)
+        if (!cargadoUnaVez.current) setCargando(true)
         try {
             const res = await api.get(ENDPOINTS.NOTIFICACIONES)
             setNotificaciones(res.data.data)
         } catch {}
-        finally { setCargando(false) }
+        finally {
+            setCargando(false)
+            cargadoUnaVez.current = true
+        }
     }
 
     const marcarLeida = async (id) => {

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
     View, Text, StyleSheet, FlatList,
     Alert, TouchableOpacity
@@ -30,11 +30,12 @@ export default function Historial() {
     const [fichas, setFichas] = useState([])
     const [notificaciones, setNotificaciones] = useState([])
     const [cargando, setCargando] = useState(true)
+    const cargadoUnaVez = useRef(false)
 
     useFocusEffect(useCallback(() => { cargarDatos() }, []))
 
     const cargarDatos = async () => {
-        setCargando(true)
+        if (!cargadoUnaVez.current) setCargando(true)
         try {
             const [citasRes, fichasRes, notifRes] = await Promise.allSettled([
                 api.get('/citas/historial'),
@@ -48,6 +49,7 @@ export default function Historial() {
             Alert.alert('Error', 'No se pudo cargar el historial')
         } finally {
             setCargando(false)
+            cargadoUnaVez.current = true
         }
     }
 
