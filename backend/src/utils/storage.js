@@ -1,26 +1,25 @@
-const { randomUUID } = require('crypto')
-const admin = require('../config/firebase')
+const { v2: cloudinary } = require('cloudinary')
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
 
 const subirImagen = async (base64, carpeta = 'trabajos') => {
-  const bucket = admin.storage().bucket()
-  const nombre = `${carpeta}/${randomUUID()}.jpg`
-  const archivo = bucket.file(nombre)
-  const buffer = Buffer.from(base64, 'base64')
-
-  await archivo.save(buffer, { metadata: { contentType: 'image/jpeg' } })
-  await archivo.makePublic()
-
-  return `https://storage.googleapis.com/${bucket.name}/${nombre}`
+  const result = await cloudinary.uploader.upload(
+    `data:image/jpeg;base64,${base64}`,
+    { folder: carpeta }
+  )
+  return result.secure_url
 }
 
 const eliminarImagen = async (url) => {
   try {
-    const bucket = admin.storage().bucket()
-    const nombre = url.split(`${bucket.name}/`)[1]
-    if (nombre) await bucket.file(nombre).delete()
-  } catch {
-    // No es error crítico si el archivo ya no existe
-  }
+    // Extrae el public_id desde la URL de Cloudinary (carpeta/nombre_sin_extension)
+    const match = url.match(/\/([^/]+\/[^/]+)\.\w+$/)
+    if (match) await cloudinary.uploader.destroy(match[1])
+  } catch {}
 }
 
 module.exports = { subirImagen, eliminarImagen }
