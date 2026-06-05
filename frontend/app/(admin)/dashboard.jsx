@@ -15,18 +15,23 @@ export default function Dashboard() {
 
     const [resumen, setResumen] = useState(null)
     const [citas, setCitas] = useState([])
+    const [noLeidas, setNoLeidas] = useState(0)
     const [cargando, setCargando] = useState(true)
 
     useEffect(() => { cargarDatos() }, [])
 
     const cargarDatos = async () => {
-        const [resCaja, resCitas] = await Promise.allSettled([
+        const [resCaja, resCitas, resNotif] = await Promise.allSettled([
             api.get('/caja/resumen'),
             api.get('/citas'),
+            api.get('/notificaciones/mias'),
         ])
         if (resCaja.status === 'fulfilled') setResumen(resCaja.value.data.data)
         if (resCitas.status === 'fulfilled') {
             setCitas(resCitas.value.data.data.filter((c) => c.estado === 'PENDIENTE').slice(0, 5))
+        }
+        if (resNotif.status === 'fulfilled') {
+            setNoLeidas(resNotif.value.data.data.filter(n => !n.leida).length)
         }
         setCargando(false)
     }
@@ -46,9 +51,19 @@ export default function Dashboard() {
                         })}
                     </Text>
                 </View>
-                <TouchableOpacity onPress={() => router.push('/(admin)/perfil')}>
-                    <Ionicons name="person-circle-outline" size={32} color={COLORS.textMuted} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <TouchableOpacity onPress={() => router.push('/(admin)/notificaciones')} style={styles.bellBtn}>
+                        <Ionicons name="notifications-outline" size={26} color={COLORS.textMuted} />
+                        {noLeidas > 0 && (
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeTexto}>{noLeidas > 9 ? '9+' : noLeidas}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => router.push('/(admin)/perfil')}>
+                        <Ionicons name="person-circle-outline" size={32} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Tarjetas financieras */}
@@ -152,4 +167,11 @@ const styles = StyleSheet.create({
     accesoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
     accesoBtn: { flex: 1, minWidth: '45%', backgroundColor: COLORS.background, borderRadius: 12, padding: 16, alignItems: 'center', gap: 8 },
     accesoLabel: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
+    bellBtn: { position: 'relative' },
+    badge: {
+        position: 'absolute', top: -4, right: -4,
+        backgroundColor: '#ef4444', borderRadius: 9,
+        minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
+    },
+    badgeTexto: { color: '#fff', fontSize: 10, fontWeight: '700' },
 })

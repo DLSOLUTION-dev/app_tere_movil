@@ -17,6 +17,10 @@ const finanzasIcon = ({ color, size }) => (
     <Ionicons name="cash-outline" size={size} color={color} />
 )
 
+const galeriaIcon = ({ color, size }) => (
+    <Ionicons name="images-outline" size={size} color={color} />
+)
+
 export default function AdminLayout() {
     return (
         <Tabs
@@ -64,9 +68,7 @@ export default function AdminLayout() {
                 name="gestion-salon"
                 options={{
                     title: 'Galería',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="images-outline" size={size} color={color} />
-                    ),
+                    tabBarIcon: galeriaIcon,
                 }}
             />
             <Tabs.Screen
@@ -79,6 +81,10 @@ export default function AdminLayout() {
             />
             <Tabs.Screen
                 name="perfil"
+                options={{ href: null }}
+            />
+            <Tabs.Screen
+                name="notificaciones"
                 options={{ href: null }}
             />
         </Tabs>
