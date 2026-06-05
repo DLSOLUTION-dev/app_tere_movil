@@ -1,8 +1,8 @@
 const router = require('express').Router()
-const { verificarToken } = require('../middlewares/auth.middleware')
+const { autenticar } = require('../middlewares/auth.middleware')
 const { listar, marcarLeida, marcarTodasLeidas } = require('../controllers/notificaciones.controller')
 
-router.use(verificarToken)
+router.use(autenticar)
 
 router.get('/mias', listar)
 router.put('/leer-todas', marcarTodasLeidas)
