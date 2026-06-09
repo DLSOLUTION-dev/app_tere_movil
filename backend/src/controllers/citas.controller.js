@@ -103,7 +103,7 @@ const listarCitas = async (req, res) => {
 const cambiarEstado = async (req, res) => {
   try {
     const { id } = req.params
-    const { estado, pago } = req.body
+    const { estado, pago, motivoCancelacion } = req.body
 
     if (estado === 'APROBADA') {
       let cita
@@ -252,15 +252,20 @@ const cambiarEstado = async (req, res) => {
     }
 
     // Para RECHAZADA y CANCELADA
+    const motivo = motivoCancelacion?.trim() || null
     const cita = await prisma.cita.update({
       where: { id },
-      data: { estado },
+      data: { estado, motivoCancelacion: motivo },
       include: { cliente: true, servicio: true },
     })
 
     const mensajes = {
-      RECHAZADA: `Tu cita de ${cita.servicio.nombre} no pudo ser confirmada ❌`,
-      CANCELADA: `Tu cita de ${cita.servicio.nombre} fue cancelada`,
+      RECHAZADA: motivo
+        ? `Tu cita de ${cita.servicio.nombre} no pudo ser confirmada ❌\nMotivo: ${motivo}`
+        : `Tu cita de ${cita.servicio.nombre} no pudo ser confirmada ❌`,
+      CANCELADA: motivo
+        ? `Tu cita de ${cita.servicio.nombre} fue cancelada\nMotivo: ${motivo}`
+        : `Tu cita de ${cita.servicio.nombre} fue cancelada`,
     }
 
     await enviarNotificacion(

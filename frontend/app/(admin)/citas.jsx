@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react'
 import {
-    View, Text, StyleSheet, FlatList,
+    View, Text, StyleSheet, FlatList, ScrollView,
     TouchableOpacity, Alert, TextInput,
     Modal, KeyboardAvoidingView, Platform, Keyboard
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { Calendar } from 'react-native-calendars'
 import api from '../../services/api'
-import { ESTADO_CITA_LABEL } from '../../types'
+import { ESTADO_CITA_LABEL, ESTADO_CITA_COLOR } from '../../types'
 import LoadingScreen from '../../components/shared/LoadingScreen'
 import Badge from '../../components/ui/Badge'
 import { theme } from '../../constants/theme'
@@ -18,17 +19,42 @@ const METODOS_PAGO = [
     { valor: 'EFECTIVO', label: 'Efectivo', icono: 'cash-outline' },
     { valor: 'TRANSFERENCIA', label: 'Transferencia', icono: 'phone-portrait-outline' },
 ]
+const LEYENDA = [
+    { estado: 'PENDIENTE', label: 'Pendiente' },
+    { estado: 'APROBADA', label: 'Confirmada' },
+    { estado: 'COMPLETADA', label: 'Completada' },
+    { estado: 'CANCELADA', label: 'Cancelada' },
+]
+
+const fechaAKey = (fechaHora) => {
+    const d = new Date(fechaHora)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const formatearDiaSeleccionado = (dateStr) => {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('es-EC', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    })
+}
 
 export default function CitasAdmin() {
     const [citas, setCitas] = useState([])
     const [filtro, setFiltro] = useState('TODAS')
     const [cargando, setCargando] = useState(true)
+    const [vista, setVista] = useState('lista')
+    const [diaSeleccionado, setDiaSeleccionado] = useState(null)
 
     const [modalPago, setModalPago] = useState(false)
     const [citaPagar, setCitaPagar] = useState(null)
     const [subtotal, setSubtotal] = useState('')
     const [metodoPago, setMetodoPago] = useState('EFECTIVO')
     const [guardandoPago, setGuardandoPago] = useState(false)
+
+    const [modalMotivo, setModalMotivo] = useState(false)
+    const [accionPendiente, setAccionPendiente] = useState(null)
+    const [motivoCancelacion, setMotivoCancelacion] = useState('')
+    const [guardandoAccion, setGuardandoAccion] = useState(false)
 
     useFocusEffect(useCallback(() => { cargarCitas() }, []))
 
@@ -43,13 +69,14 @@ export default function CitasAdmin() {
         }
     }
 
-    const cambiarEstado = async (id, estado) => {
-        const mensajes = {
-            APROBADA: '¿Confirmar esta cita?',
-            RECHAZADA: '¿Rechazar esta cita?',
-            CANCELADA: '¿Cancelar esta cita?',
+    const cambiarEstado = (id, estado, cita) => {
+        if (estado === 'RECHAZADA' || estado === 'CANCELADA') {
+            setAccionPendiente({ id, estado, cita })
+            setMotivoCancelacion('')
+            setModalMotivo(true)
+            return
         }
-        Alert.alert('Confirmar acción', mensajes[estado], [
+        Alert.alert('Confirmar acción', '¿Confirmar esta cita?', [
             { text: 'No', style: 'cancel' },
             {
                 text: 'Sí',
@@ -63,6 +90,23 @@ export default function CitasAdmin() {
                 },
             },
         ])
+    }
+
+    const confirmarAccionConMotivo = async () => {
+        if (!accionPendiente) return
+        setGuardandoAccion(true)
+        try {
+            const body = { estado: accionPendiente.estado }
+            if (motivoCancelacion.trim()) body.motivoCancelacion = motivoCancelacion.trim()
+            await api.patch(`/citas/${accionPendiente.id}/estado`, body)
+            setModalMotivo(false)
+            setAccionPendiente(null)
+            await cargarCitas()
+        } catch (e) {
+            Alert.alert('Error', e.response?.data?.mensaje || 'No se pudo actualizar la cita')
+        } finally {
+            setGuardandoAccion(false)
+        }
     }
 
     const abrirModalPago = (cita) => {
@@ -100,7 +144,6 @@ export default function CitasAdmin() {
 
     const renderCita = ({ item }) => (
         <View style={theme.card}>
-            {/* Encabezado */}
             <View style={styles.cardHeader}>
                 <View style={styles.cardInfo}>
                     <Text style={styles.nombre}>
@@ -123,7 +166,6 @@ export default function CitasAdmin() {
                 <Text style={styles.notas}>💬 {item.notas}</Text>
             }
 
-            {/* Botones PENDIENTE */}
             {item.estado === 'PENDIENTE' && (
                 <View style={styles.botones}>
                     <TouchableOpacity
@@ -135,7 +177,7 @@ export default function CitasAdmin() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.btn, { backgroundColor: COLORS.danger }]}
-                        onPress={() => cambiarEstado(item.id, 'RECHAZADA')}
+                        onPress={() => cambiarEstado(item.id, 'RECHAZADA', item)}
                     >
                         <Ionicons name="close" size={16} color={COLORS.white} />
                         <Text style={styles.btnTextoBlanco}>Rechazar</Text>
@@ -143,7 +185,6 @@ export default function CitasAdmin() {
                 </View>
             )}
 
-            {/* Botones APROBADA */}
             {item.estado === 'APROBADA' && (
                 <View style={styles.botones}>
                     <TouchableOpacity
@@ -155,7 +196,7 @@ export default function CitasAdmin() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.btn, { backgroundColor: COLORS.dangerLight, flex: 0.6 }]}
-                        onPress={() => cambiarEstado(item.id, 'CANCELADA')}
+                        onPress={() => cambiarEstado(item.id, 'CANCELADA', item)}
                     >
                         <Ionicons name="ban" size={16} color={COLORS.danger} />
                         <Text style={styles.btnTextoRojo}>Cancelar</Text>
@@ -163,7 +204,6 @@ export default function CitasAdmin() {
                 </View>
             )}
 
-            {/* Resumen factura COMPLETADA */}
             {item.estado === 'COMPLETADA' && item.factura && (
                 <View style={styles.facturaResumen}>
                     <Ionicons name="receipt-outline" size={14} color={COLORS.secondary} />
@@ -178,41 +218,217 @@ export default function CitasAdmin() {
 
     if (cargando) return <LoadingScreen />
 
+    const textoBotonAccion = accionPendiente?.estado === 'RECHAZADA' ? 'Rechazar' : 'Cancelar'
+
+    // Marcas para el calendario: puntos de color por estado
+    const markedDates = {}
+    citas.forEach(cita => {
+        const key = fechaAKey(cita.fechaHora)
+        if (!markedDates[key]) markedDates[key] = { dots: [] }
+        if (!markedDates[key].dots.some(dot => dot.key === cita.estado)) {
+            markedDates[key].dots.push({ key: cita.estado, color: ESTADO_CITA_COLOR[cita.estado] })
+        }
+    })
+    if (diaSeleccionado) {
+        markedDates[diaSeleccionado] = {
+            ...(markedDates[diaSeleccionado] || { dots: [] }),
+            selected: true,
+            selectedColor: COLORS.primary,
+        }
+    }
+
+    // Citas del día seleccionado ordenadas por hora
+    const citasDelDia = diaSeleccionado
+        ? citas
+            .filter(c => fechaAKey(c.fechaHora) === diaSeleccionado)
+            .sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora))
+        : []
+
     return (
         <View style={theme.container}>
 
             {/* Header */}
             <View style={theme.header}>
                 <Text style={theme.titulo}>Citas</Text>
-                <TouchableOpacity onPress={cargarCitas}>
-                    <Ionicons name="refresh" size={22} color={COLORS.primary} />
-                </TouchableOpacity>
-            </View>
-
-            {/* Filtros */}
-            <View style={styles.filtrosContainer}>
-                {FILTROS.map((f) => (
-                    <TouchableOpacity
-                        key={f}
-                        style={[styles.filtro, filtro === f && styles.filtroActivo]}
-                        onPress={() => setFiltro(f)}
-                    >
-                        <Text style={[styles.filtroTexto, filtro === f && styles.filtroTextoActivo]}>
-                            {f === 'TODAS' ? 'Todas' : ESTADO_CITA_LABEL[f]}
-                        </Text>
+                <View style={styles.headerAcciones}>
+                    <View style={styles.vistaToggle}>
+                        <TouchableOpacity
+                            style={[styles.toggleBtn, vista === 'lista' && styles.toggleBtnActivo]}
+                            onPress={() => setVista('lista')}
+                        >
+                            <Ionicons name="list-outline" size={18} color={vista === 'lista' ? COLORS.white : COLORS.textMuted} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.toggleBtn, vista === 'calendario' && styles.toggleBtnActivo]}
+                            onPress={() => setVista('calendario')}
+                        >
+                            <Ionicons name="calendar-outline" size={18} color={vista === 'calendario' ? COLORS.white : COLORS.textMuted} />
+                        </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity onPress={cargarCitas}>
+                        <Ionicons name="refresh" size={22} color={COLORS.primary} />
                     </TouchableOpacity>
-                ))}
+                </View>
             </View>
 
-            <FlatList
-                data={citasFiltradas}
-                keyExtractor={(i) => i.id}
-                renderItem={renderCita}
-                contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-                ListEmptyComponent={
-                    <Text style={theme.vacio}>No hay citas en esta categoría</Text>
-                }
-            />
+            {vista === 'lista' ? (
+                <>
+                    {/* Filtros */}
+                    <View style={styles.filtrosContainer}>
+                        {FILTROS.map((f) => (
+                            <TouchableOpacity
+                                key={f}
+                                style={[styles.filtro, filtro === f && styles.filtroActivo]}
+                                onPress={() => setFiltro(f)}
+                            >
+                                <Text style={[styles.filtroTexto, filtro === f && styles.filtroTextoActivo]}>
+                                    {f === 'TODAS' ? 'Todas' : ESTADO_CITA_LABEL[f]}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <FlatList
+                        data={citasFiltradas}
+                        keyExtractor={(i) => i.id}
+                        renderItem={renderCita}
+                        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                        ListEmptyComponent={
+                            <Text style={theme.vacio}>No hay citas en esta categoría</Text>
+                        }
+                    />
+                </>
+            ) : (
+                <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+                    <Calendar
+                        markingType="multi-dot"
+                        markedDates={markedDates}
+                        onDayPress={(day) => setDiaSeleccionado(day.dateString)}
+                        theme={{
+                            backgroundColor: COLORS.white,
+                            calendarBackground: COLORS.white,
+                            selectedDayBackgroundColor: COLORS.primary,
+                            selectedDayTextColor: COLORS.white,
+                            todayTextColor: COLORS.primary,
+                            todayBackgroundColor: COLORS.background,
+                            dayTextColor: '#2d4150',
+                            textDisabledColor: '#d9e1e8',
+                            monthTextColor: COLORS.primary,
+                            textMonthFontWeight: '700',
+                            textMonthFontSize: 16,
+                            arrowColor: COLORS.primary,
+                        }}
+                    />
+
+                    {/* Leyenda de colores */}
+                    <View style={styles.leyenda}>
+                        {LEYENDA.map(({ estado, label }) => (
+                            <View key={estado} style={styles.leyendaItem}>
+                                <View style={[styles.leyendaDot, { backgroundColor: ESTADO_CITA_COLOR[estado] }]} />
+                                <Text style={styles.leyendaTexto}>{label}</Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Citas del día seleccionado */}
+                    {diaSeleccionado && (
+                        <View style={styles.diaContainer}>
+                            <Text style={styles.diaTitulo}>
+                                {formatearDiaSeleccionado(diaSeleccionado)}
+                            </Text>
+                            {citasDelDia.length === 0 ? (
+                                <View style={styles.sinCitas}>
+                                    <Ionicons name="calendar-outline" size={36} color="#ddd" />
+                                    <Text style={styles.sinCitasTexto}>Sin citas este día</Text>
+                                </View>
+                            ) : (
+                                <View style={{ paddingHorizontal: 16 }}>
+                                    {citasDelDia.map(item => (
+                                        <View key={item.id}>
+                                            {renderCita({ item })}
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {!diaSeleccionado && (
+                        <View style={styles.sinCitas}>
+                            <Ionicons name="finger-print-outline" size={36} color="#ddd" />
+                            <Text style={styles.sinCitasTexto}>Toca un día para ver sus citas</Text>
+                        </View>
+                    )}
+                </ScrollView>
+            )}
+
+            {/* Modal motivo de rechazo/cancelación */}
+            <Modal visible={modalMotivo} animationType="slide" transparent>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
+                    <TouchableOpacity
+                        style={theme.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => { Keyboard.dismiss(); setModalMotivo(false) }}
+                    >
+                        <View style={theme.modal} onStartShouldSetResponder={() => true}>
+                            <Text style={theme.modalTitulo}>
+                                {accionPendiente?.estado === 'RECHAZADA' ? 'Rechazar cita' : 'Cancelar cita'}
+                            </Text>
+
+                            <View style={styles.citaResumen}>
+                                <Text style={styles.citaResumenNombre}>
+                                    {accionPendiente?.cita?.cliente?.nombre} {accionPendiente?.cita?.cliente?.apellido}
+                                </Text>
+                                <Text style={styles.citaResumenServicio}>
+                                    {accionPendiente?.cita?.servicio?.nombre}
+                                </Text>
+                            </View>
+
+                            <Text style={theme.inputLabel}>Motivo (opcional)</Text>
+                            <TextInput
+                                style={[theme.input, styles.inputMotivo]}
+                                placeholder="Ej: Agenda llena, compromiso personal..."
+                                placeholderTextColor={COLORS.textMuted}
+                                value={motivoCancelacion}
+                                onChangeText={setMotivoCancelacion}
+                                multiline
+                                numberOfLines={3}
+                                maxLength={200}
+                                textAlignVertical="top"
+                            />
+                            <Text style={styles.contadorCaracteres}>{motivoCancelacion.length}/200</Text>
+
+                            <View style={theme.modalBotones}>
+                                <TouchableOpacity
+                                    style={theme.btnSecundario}
+                                    onPress={() => setModalMotivo(false)}
+                                >
+                                    <Text style={theme.btnSecundarioTexto}>Volver</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        theme.btnGuardar,
+                                        { backgroundColor: accionPendiente?.estado === 'RECHAZADA' ? COLORS.danger : COLORS.dangerLight },
+                                        guardandoAccion && { opacity: 0.6 }
+                                    ]}
+                                    onPress={confirmarAccionConMotivo}
+                                    disabled={guardandoAccion}
+                                >
+                                    <Text style={[
+                                        theme.btnGuardarTexto,
+                                        accionPendiente?.estado === 'CANCELADA' && { color: COLORS.danger }
+                                    ]}>
+                                        {guardandoAccion ? 'Procesando...' : textoBotonAccion}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </Modal>
 
             {/* Modal de pago */}
             <Modal visible={modalPago} animationType="slide" transparent>
@@ -298,6 +514,10 @@ export default function CitasAdmin() {
 }
 
 const styles = StyleSheet.create({
+    headerAcciones: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    vistaToggle: { flexDirection: 'row', backgroundColor: COLORS.background, borderRadius: 8, padding: 3, gap: 2 },
+    toggleBtn: { padding: 6, borderRadius: 6 },
+    toggleBtnActivo: { backgroundColor: COLORS.primary },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
     cardInfo: { flex: 1, marginRight: 8 },
     nombre: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
@@ -323,4 +543,14 @@ const styles = StyleSheet.create({
     metodoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, padding: 14, backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: 'transparent' },
     metodoBtnActivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
     metodoBtnTexto: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+    inputMotivo: { height: 80, paddingTop: 10 },
+    contadorCaracteres: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right', marginTop: -10, marginBottom: 16 },
+    leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+    leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    leyendaDot: { width: 8, height: 8, borderRadius: 4 },
+    leyendaTexto: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500' },
+    diaContainer: { marginTop: 4 },
+    diaTitulo: { fontSize: 15, fontWeight: '700', color: COLORS.primary, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, textTransform: 'capitalize' },
+    sinCitas: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+    sinCitasTexto: { fontSize: 14, color: '#bbb', fontWeight: '500' },
 })

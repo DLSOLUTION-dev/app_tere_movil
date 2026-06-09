@@ -79,15 +79,16 @@ model Servicio {
 }
 
 model Cita {
-  id          String     @id @default(uuid())
-  clienteId   String     @map("cliente_id")
-  servicioId  String     @map("servicio_id")
-  estilistaId String     @map("estilista_id")
-  fechaHora   DateTime   @map("fecha_hora")
-  estado      EstadoCita @default(PENDIENTE)
-  notas       String?
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  id                String     @id @default(uuid())
+  clienteId         String     @map("cliente_id")
+  servicioId        String     @map("servicio_id")
+  estilistaId       String     @map("estilista_id")
+  fechaHora         DateTime   @map("fecha_hora")
+  estado            EstadoCita @default(PENDIENTE)
+  notas             String?
+  motivoCancelacion String?    @map("motivo_cancelacion")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
 
   cliente   Usuario  @relation("CitasCliente",   fields: [clienteId],   references: [id])
   estilista Usuario  @relation("CitasEstilista",  fields: [estilistaId], references: [id])
