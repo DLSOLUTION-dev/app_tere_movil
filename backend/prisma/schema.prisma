@@ -138,6 +138,7 @@ model Notificacion {
   titulo    String
   mensaje   String
   tipo      TipoNotificacion
+  pantalla  String?
   leida     Boolean          @default(false)
   enviadaAt DateTime         @default(now()) @map("enviada_at")
 

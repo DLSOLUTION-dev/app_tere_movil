@@ -28,7 +28,8 @@ const expirarCitasPendientes = async () => {
         cita.clienteId,
         'Cita no confirmada',
         `Tu cita de ${cita.servicio.nombre} no fue confirmada a tiempo y expiró automáticamente.`,
-        'CANCELACION'
+        'CANCELACION',
+        '/(client)/inicio'
       )
     }
 

@@ -67,7 +67,8 @@ const solicitarCita = async (req, res) => {
       admin.id,
       'Nueva solicitud de cita',
       `${req.usuario.nombre} solicitó una cita para ${cita.servicio.nombre}`,
-      'CONFIRMACION'
+      'CONFIRMACION',
+      '/(admin)/citas'
     )
 
     return creado(res, cita)
@@ -165,7 +166,8 @@ const cambiarEstado = async (req, res) => {
         cita.clienteId,
         'Actualización de tu cita',
         `Tu cita de ${cita.servicio.nombre} fue confirmada ✅`,
-        'CONFIRMACION'
+        'CONFIRMACION',
+        '/(client)/inicio'
       )
       return ok(res, cita)
     }
@@ -241,7 +243,8 @@ const cambiarEstado = async (req, res) => {
         resultado.clienteId,
         'Cita completada',
         `Tu cita de ${resultado.servicio.nombre} ha sido completada. ¡Gracias por tu visita!`,
-        'CONFIRMACION'
+        'CONFIRMACION',
+        '/(client)/historial'
       )
 
       const citaActualizada = await prisma.cita.findUnique({
@@ -280,7 +283,8 @@ const cambiarEstado = async (req, res) => {
       cita.clienteId,
       'Actualización de tu cita',
       mensajeNotif,
-      'CANCELACION'
+      'CANCELACION',
+      '/(client)/inicio'
     )
 
     return ok(res, cita)
@@ -319,7 +323,8 @@ const cancelarCita = async (req, res) => {
         admin.id,
         'Cita cancelada por cliente',
         `${req.usuario.nombre} canceló su cita de ${cita.servicio.nombre} del ${new Date(cita.fechaHora).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' })}`,
-        'CANCELACION'
+        'CANCELACION',
+        '/(admin)/citas'
       )
     }
 
@@ -352,7 +357,8 @@ const cancelarCita = async (req, res) => {
         c.clienteId,
         '¡Horario disponible!',
         `Se liberó el horario de las ${horaLibre} del ${fechaLibre}. ¡Puedes agendarlo!`,
-        'RECORDATORIO'
+        'RECORDATORIO',
+        '/(client)/nueva-cita'
       )
     ))
 
@@ -526,7 +532,8 @@ const reagendarCita = async (req, res) => {
       admin.id,
       'Reagendamiento de cita',
       `${req.usuario.nombre} reagendó su cita de ${nuevaCita.servicio.nombre} para el ${fecha.toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' })}`,
-      'REPROGRAMACION'
+      'REPROGRAMACION',
+      '/(admin)/citas'
     )
 
     return creado(res, nuevaCita)

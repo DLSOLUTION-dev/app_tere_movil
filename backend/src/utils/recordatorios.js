@@ -34,7 +34,8 @@ const enviarRecordatorios = async () => {
         cita.clienteId,
         '⏰ Recordatorio de cita',
         `Mañana tienes tu cita de ${cita.servicio.nombre} a las ${hora} (${fecha}). ¡Te esperamos!`,
-        'RECORDATORIO'
+        'RECORDATORIO',
+        '/(client)/inicio'
       )
     }
 

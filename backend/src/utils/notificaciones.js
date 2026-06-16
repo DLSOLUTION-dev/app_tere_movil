@@ -7,11 +7,12 @@ const prisma  = require('../config/database')
  * @param {string} titulo
  * @param {string} mensaje
  * @param {string} tipo       - TipoNotificacion enum
+ * @param {string} [pantalla] - ruta de expo-router a la que debe navegar al tocar la notificación
  */
-const enviarNotificacion = async (usuarioId, titulo, mensaje, tipo) => {
+const enviarNotificacion = async (usuarioId, titulo, mensaje, tipo, pantalla = null) => {
   // Guardar siempre en BD (historial)
   await prisma.notificacion.create({
-    data: { usuarioId, titulo, mensaje, tipo },
+    data: { usuarioId, titulo, mensaje, tipo, pantalla },
   })
 
   // Obtener token FCM del dispositivo
@@ -23,6 +24,7 @@ const enviarNotificacion = async (usuarioId, titulo, mensaje, tipo) => {
   if (!usuario?.fcmToken) return  // sin token = sin push, pero la notificación queda en BD
 
   const token = usuario.fcmToken
+  const data = pantalla ? { tipo, destino: pantalla } : { tipo }
 
   try {
     if (token.startsWith('ExponentPushToken[')) {
@@ -38,7 +40,7 @@ const enviarNotificacion = async (usuarioId, titulo, mensaje, tipo) => {
           title: titulo,
           body:  mensaje,
           sound: 'default',
-          data:  { tipo },
+          data,
         }),
       })
     } else {
@@ -46,7 +48,7 @@ const enviarNotificacion = async (usuarioId, titulo, mensaje, tipo) => {
       await admin.messaging().send({
         token,
         notification: { title: titulo, body: mensaje },
-        data: { tipo },
+        data,
       })
     }
   } catch (err) {

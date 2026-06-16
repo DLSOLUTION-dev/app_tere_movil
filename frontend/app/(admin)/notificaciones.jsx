@@ -57,10 +57,15 @@ export default function NotificacionesAdmin() {
 
     const noLeidas = notificaciones.filter(n => !n.leida).length
 
+    const irAPantalla = (item) => {
+        if (!item.leida) marcarLeida(item.id)
+        if (item.pantalla) router.push(item.pantalla)
+    }
+
     const renderItem = ({ item }) => (
         <TouchableOpacity
             style={[styles.card, !item.leida && styles.cardNoLeida]}
-            onPress={() => !item.leida && marcarLeida(item.id)}
+            onPress={() => irAPantalla(item)}
             activeOpacity={0.85}
         >
             <View style={styles.row}>

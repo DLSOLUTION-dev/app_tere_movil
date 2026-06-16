@@ -17,13 +17,22 @@ export default function RootLayout() {
     const respuestaListener = useRef()
 
     useEffect(() => {
-        // Cuando el usuario toca una notificación (app en background o cerrada)
-        respuestaListener.current = Notifications.addNotificationResponseReceivedListener(() => {
-            // Navegar al historial de notificaciones del cliente o al panel admin
-            // Por simplicidad llevamos al historial — el usuario ya autenticado
-            // verá la pantalla correcta según su rol
-            router.push('/(client)/historial')
-        })
+        const navegarDesdeNotificacion = (response) => {
+            const destino = response?.notification?.request?.content?.data?.destino
+            router.push(destino || '/(client)/historial')
+        }
+
+        // App abierta (foreground/background) y el usuario toca la notificación
+        respuestaListener.current = Notifications.addNotificationResponseReceivedListener(
+            navegarDesdeNotificacion
+        )
+
+        // App estaba cerrada y se abrió tocando la notificación
+        const ultimaRespuesta = Notifications.getLastNotificationResponse()
+        if (ultimaRespuesta) {
+            // Pequeño delay para que el router termine de montar la navegación inicial
+            setTimeout(() => navegarDesdeNotificacion(ultimaRespuesta), 500)
+        }
 
         return () => {
             if (respuestaListener.current) {
