@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import {
     View, Text, StyleSheet, FlatList, ScrollView,
     TouchableOpacity, Alert, TextInput,
-    Modal, KeyboardAvoidingView, Platform, Keyboard, Switch
+    Modal, KeyboardAvoidingView, Platform, Keyboard, Switch,
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
@@ -86,6 +86,7 @@ export default function CitasAdmin() {
     }
 
     const abrirPickerAlternativo = () => {
+        Keyboard.dismiss()
         setPickerTempDate(new Date())
         setPickerMode('date')
         setModalPicker(true)
@@ -422,96 +423,102 @@ export default function CitasAdmin() {
                     <TouchableOpacity
                         style={theme.modalOverlay}
                         activeOpacity={1}
-                        onPress={() => { if (modalPicker) return; Keyboard.dismiss(); setModalMotivo(false) }}
+                        onPress={() => { if (!modalPicker) { Keyboard.dismiss(); setModalMotivo(false) } }}
                     >
-                        <View style={theme.modal} onStartShouldSetResponder={() => true}>
-                            <Text style={theme.modalTitulo}>
-                                {accionPendiente?.estado === 'RECHAZADA' ? 'Rechazar cita' : 'Cancelar cita'}
-                            </Text>
-
-                            <View style={styles.citaResumen}>
-                                <Text style={styles.citaResumenNombre}>
-                                    {accionPendiente?.cita?.cliente?.nombre} {accionPendiente?.cita?.cliente?.apellido}
+                        <View style={[theme.modal, { maxHeight: '88%' }]} onStartShouldSetResponder={() => true}>
+                            <ScrollView
+                                keyboardShouldPersistTaps="handled"
+                                showsVerticalScrollIndicator={false}
+                                contentContainerStyle={{ paddingBottom: 8 }}
+                            >
+                                <Text style={theme.modalTitulo}>
+                                    {accionPendiente?.estado === 'RECHAZADA' ? 'Rechazar cita' : 'Cancelar cita'}
                                 </Text>
-                                <Text style={styles.citaResumenServicio}>
-                                    {accionPendiente?.cita?.servicio?.nombre}
-                                </Text>
-                            </View>
 
-                            <Text style={theme.inputLabel}>Motivo (opcional)</Text>
-                            <TextInput
-                                style={[theme.input, styles.inputMotivo]}
-                                placeholder="Ej: Agenda llena, compromiso personal..."
-                                placeholderTextColor={COLORS.textMuted}
-                                value={motivoCancelacion}
-                                onChangeText={setMotivoCancelacion}
-                                multiline
-                                numberOfLines={3}
-                                maxLength={200}
-                                textAlignVertical="top"
-                            />
-                            <Text style={styles.contadorCaracteres}>{motivoCancelacion.length}/200</Text>
-
-                            {/* Proponer horarios alternativos */}
-                            <View style={styles.reagendRow}>
-                                <Text style={styles.reagendLabel}>Proponer horarios alternativos</Text>
-                                <Switch
-                                    value={ofrecerReagendamiento}
-                                    onValueChange={v => {
-                                        setOfrecerReagendamiento(v)
-                                        if (!v) setHorariosAlternativos([])
-                                    }}
-                                    trackColor={{ true: COLORS.primary }}
-                                    thumbColor={COLORS.white}
-                                />
-                            </View>
-
-                            {ofrecerReagendamiento && (
-                                <View style={styles.alternativasContainer}>
-                                    {horariosAlternativos.map((fecha) => (
-                                        <View key={fecha.toISOString()} style={styles.alternativaChip}>
-                                            <Ionicons name="time-outline" size={14} color={COLORS.primary} />
-                                            <Text style={styles.alternativaTexto}>
-                                                {fecha.toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })}
-                                            </Text>
-                                            <TouchableOpacity onPress={() => quitarAlternativa(fecha.toISOString())}>
-                                                <Ionicons name="close-circle" size={18} color={COLORS.danger} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                    {horariosAlternativos.length < 3 && (
-                                        <TouchableOpacity style={styles.agregarHorarioBtn} onPress={abrirPickerAlternativo}>
-                                            <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
-                                            <Text style={styles.agregarHorarioTexto}>Agregar horario</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            )}
-
-                            <View style={theme.modalBotones}>
-                                <TouchableOpacity
-                                    style={theme.btnSecundario}
-                                    onPress={() => setModalMotivo(false)}
-                                >
-                                    <Text style={theme.btnSecundarioTexto}>Volver</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[
-                                        theme.btnGuardar,
-                                        { backgroundColor: accionPendiente?.estado === 'RECHAZADA' ? COLORS.danger : COLORS.dangerLight },
-                                        guardandoAccion && { opacity: 0.6 }
-                                    ]}
-                                    onPress={confirmarAccionConMotivo}
-                                    disabled={guardandoAccion}
-                                >
-                                    <Text style={[
-                                        theme.btnGuardarTexto,
-                                        accionPendiente?.estado === 'CANCELADA' && { color: COLORS.danger }
-                                    ]}>
-                                        {guardandoAccion ? 'Procesando...' : textoBotonAccion}
+                                <View style={styles.citaResumen}>
+                                    <Text style={styles.citaResumenNombre}>
+                                        {accionPendiente?.cita?.cliente?.nombre} {accionPendiente?.cita?.cliente?.apellido}
                                     </Text>
-                                </TouchableOpacity>
-                            </View>
+                                    <Text style={styles.citaResumenServicio}>
+                                        {accionPendiente?.cita?.servicio?.nombre}
+                                    </Text>
+                                </View>
+
+                                <Text style={theme.inputLabel}>Motivo (opcional)</Text>
+                                <TextInput
+                                    style={[theme.input, styles.inputMotivo]}
+                                    placeholder="Ej: Agenda llena, compromiso personal..."
+                                    placeholderTextColor={COLORS.textMuted}
+                                    value={motivoCancelacion}
+                                    onChangeText={setMotivoCancelacion}
+                                    multiline
+                                    numberOfLines={3}
+                                    maxLength={200}
+                                    textAlignVertical="top"
+                                />
+                                <Text style={styles.contadorCaracteres}>{motivoCancelacion.length}/200</Text>
+
+                                {/* Proponer horarios alternativos */}
+                                <View style={styles.reagendRow}>
+                                    <Text style={styles.reagendLabel}>Proponer horarios alternativos</Text>
+                                    <Switch
+                                        value={ofrecerReagendamiento}
+                                        onValueChange={v => {
+                                            setOfrecerReagendamiento(v)
+                                            if (!v) setHorariosAlternativos([])
+                                        }}
+                                        trackColor={{ true: COLORS.primary }}
+                                        thumbColor={COLORS.white}
+                                    />
+                                </View>
+
+                                {ofrecerReagendamiento && (
+                                    <View style={styles.alternativasContainer}>
+                                        {horariosAlternativos.map((fecha) => (
+                                            <View key={fecha.toISOString()} style={styles.alternativaChip}>
+                                                <Ionicons name="time-outline" size={14} color={COLORS.primary} />
+                                                <Text style={styles.alternativaTexto}>
+                                                    {fecha.toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })}
+                                                </Text>
+                                                <TouchableOpacity onPress={() => quitarAlternativa(fecha.toISOString())}>
+                                                    <Ionicons name="close-circle" size={18} color={COLORS.danger} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                        {horariosAlternativos.length < 3 && (
+                                            <TouchableOpacity style={styles.agregarHorarioBtn} onPress={abrirPickerAlternativo}>
+                                                <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+                                                <Text style={styles.agregarHorarioTexto}>Agregar horario</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                )}
+
+                                <View style={theme.modalBotones}>
+                                    <TouchableOpacity
+                                        style={theme.btnSecundario}
+                                        onPress={() => setModalMotivo(false)}
+                                    >
+                                        <Text style={theme.btnSecundarioTexto}>Volver</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            theme.btnGuardar,
+                                            { backgroundColor: accionPendiente?.estado === 'RECHAZADA' ? COLORS.danger : COLORS.dangerLight },
+                                            guardandoAccion && { opacity: 0.6 }
+                                        ]}
+                                        onPress={confirmarAccionConMotivo}
+                                        disabled={guardandoAccion}
+                                    >
+                                        <Text style={[
+                                            theme.btnGuardarTexto,
+                                            accionPendiente?.estado === 'CANCELADA' && { color: COLORS.danger }
+                                        ]}>
+                                            {guardandoAccion ? 'Procesando...' : textoBotonAccion}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </ScrollView>
                         </View>
                     </TouchableOpacity>
 
