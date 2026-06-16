@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
     View, Text, StyleSheet, FlatList, ScrollView,
     TouchableOpacity, Alert, TextInput,
-    Modal, KeyboardAvoidingView, Platform, Keyboard
+    Modal, KeyboardAvoidingView, Platform, Keyboard, Switch
 } from 'react-native'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Calendar } from 'react-native-calendars'
@@ -56,6 +57,12 @@ export default function CitasAdmin() {
     const [motivoCancelacion, setMotivoCancelacion] = useState('')
     const [guardandoAccion, setGuardandoAccion] = useState(false)
 
+    const [ofrecerReagendamiento, setOfrecerReagendamiento] = useState(false)
+    const [horariosAlternativos, setHorariosAlternativos] = useState([])
+    const [pickerVisible, setPickerVisible] = useState(false)
+    const [pickerMode, setPickerMode] = useState('date')
+    const pickerTempFecha = useRef(new Date())
+
     useFocusEffect(useCallback(() => { cargarCitas() }, []))
 
     const cargarCitas = async () => {
@@ -69,10 +76,46 @@ export default function CitasAdmin() {
         }
     }
 
+    const abrirPickerAlternativo = () => {
+        pickerTempFecha.current = new Date()
+        setPickerMode('date')
+        setPickerVisible(true)
+    }
+
+    const onPickerChange = (event, selectedDate) => {
+        if (Platform.OS === 'android') {
+            setPickerVisible(false)
+            if (event.type === 'dismissed') return
+            if (pickerMode === 'date') {
+                pickerTempFecha.current = selectedDate
+                setPickerMode('time')
+                setTimeout(() => setPickerVisible(true), 50)
+            } else {
+                const final = new Date(pickerTempFecha.current)
+                final.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0)
+                setHorariosAlternativos(prev => [...prev, final])
+                setPickerMode('date')
+            }
+        } else {
+            if (selectedDate) pickerTempFecha.current = selectedDate
+        }
+    }
+
+    const quitarAlternativa = (iso) =>
+        setHorariosAlternativos(prev => prev.filter(d => d.toISOString() !== iso))
+
+    const confirmarPickerIOS = () => {
+        const final = new Date(pickerTempFecha.current)
+        setHorariosAlternativos(prev => [...prev, final])
+        setPickerVisible(false)
+    }
+
     const cambiarEstado = (id, estado, cita) => {
         if (estado === 'RECHAZADA' || estado === 'CANCELADA') {
             setAccionPendiente({ id, estado, cita })
             setMotivoCancelacion('')
+            setOfrecerReagendamiento(false)
+            setHorariosAlternativos([])
             setModalMotivo(true)
             return
         }
@@ -98,9 +141,14 @@ export default function CitasAdmin() {
         try {
             const body = { estado: accionPendiente.estado }
             if (motivoCancelacion.trim()) body.motivoCancelacion = motivoCancelacion.trim()
+            if (ofrecerReagendamiento && horariosAlternativos.length > 0) {
+                body.horariosAlternativos = horariosAlternativos.map(d => d.toISOString())
+            }
             await api.patch(`/citas/${accionPendiente.id}/estado`, body)
             setModalMotivo(false)
             setAccionPendiente(null)
+            setOfrecerReagendamiento(false)
+            setHorariosAlternativos([])
             await cargarCitas()
         } catch (e) {
             Alert.alert('Error', e.response?.data?.mensaje || 'No se pudo actualizar la cita')
@@ -401,6 +449,42 @@ export default function CitasAdmin() {
                             />
                             <Text style={styles.contadorCaracteres}>{motivoCancelacion.length}/200</Text>
 
+                            {/* Proponer horarios alternativos */}
+                            <View style={styles.reagendRow}>
+                                <Text style={styles.reagendLabel}>Proponer horarios alternativos</Text>
+                                <Switch
+                                    value={ofrecerReagendamiento}
+                                    onValueChange={v => {
+                                        setOfrecerReagendamiento(v)
+                                        if (!v) setHorariosAlternativos([])
+                                    }}
+                                    trackColor={{ true: COLORS.primary }}
+                                    thumbColor={COLORS.white}
+                                />
+                            </View>
+
+                            {ofrecerReagendamiento && (
+                                <View style={styles.alternativasContainer}>
+                                    {horariosAlternativos.map((fecha) => (
+                                        <View key={fecha.toISOString()} style={styles.alternativaChip}>
+                                            <Ionicons name="time-outline" size={14} color={COLORS.primary} />
+                                            <Text style={styles.alternativaTexto}>
+                                                {fecha.toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })}
+                                            </Text>
+                                            <TouchableOpacity onPress={() => quitarAlternativa(fecha.toISOString())}>
+                                                <Ionicons name="close-circle" size={18} color={COLORS.danger} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                    {horariosAlternativos.length < 3 && (
+                                        <TouchableOpacity style={styles.agregarHorarioBtn} onPress={abrirPickerAlternativo}>
+                                            <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+                                            <Text style={styles.agregarHorarioTexto}>Agregar horario</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
+
                             <View style={theme.modalBotones}>
                                 <TouchableOpacity
                                     style={theme.btnSecundario}
@@ -429,6 +513,22 @@ export default function CitasAdmin() {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+
+            {/* DateTimePicker fuera del modal para evitar problemas de z-index en Android */}
+            {pickerVisible && (
+                <DateTimePicker
+                    value={pickerTempFecha.current}
+                    mode={pickerMode}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    minimumDate={new Date()}
+                    onChange={onPickerChange}
+                />
+            )}
+            {Platform.OS === 'ios' && pickerVisible && (
+                <TouchableOpacity style={styles.iosConfirmarBtn} onPress={confirmarPickerIOS}>
+                    <Text style={styles.iosConfirmarTexto}>Confirmar</Text>
+                </TouchableOpacity>
+            )}
 
             {/* Modal de pago */}
             <Modal visible={modalPago} animationType="slide" transparent>
@@ -545,6 +645,15 @@ const styles = StyleSheet.create({
     metodoBtnTexto: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
     inputMotivo: { height: 80, paddingTop: 10 },
     contadorCaracteres: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right', marginTop: -10, marginBottom: 16 },
+    reagendRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    reagendLabel: { fontSize: 14, color: COLORS.primary, fontWeight: '600' },
+    alternativasContainer: { marginBottom: 16, gap: 8 },
+    alternativaChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.background, borderRadius: 10, padding: 10 },
+    alternativaTexto: { flex: 1, fontSize: 13, color: COLORS.primary, fontWeight: '500' },
+    agregarHorarioBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
+    agregarHorarioTexto: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
+    iosConfirmarBtn: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32 },
+    iosConfirmarTexto: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
     leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
     leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     leyendaDot: { width: 8, height: 8, borderRadius: 4 },

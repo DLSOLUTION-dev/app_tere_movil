@@ -103,7 +103,7 @@ const listarCitas = async (req, res) => {
 const cambiarEstado = async (req, res) => {
   try {
     const { id } = req.params
-    const { estado, pago, motivoCancelacion } = req.body
+    const { estado, pago, motivoCancelacion, horariosAlternativos } = req.body
 
     if (estado === 'APROBADA') {
       let cita
@@ -253,25 +253,33 @@ const cambiarEstado = async (req, res) => {
 
     // Para RECHAZADA y CANCELADA
     const motivo = motivoCancelacion?.trim() || null
+    const alternativas = Array.isArray(horariosAlternativos) && horariosAlternativos.length > 0
+      ? horariosAlternativos.slice(0, 3)
+      : null
+
     const cita = await prisma.cita.update({
       where: { id },
-      data: { estado, motivoCancelacion: motivo },
+      data: { estado, motivoCancelacion: motivo, horariosAlternativos: alternativas },
       include: { cliente: true, servicio: true },
     })
 
-    const mensajes = {
-      RECHAZADA: motivo
-        ? `Tu cita de ${cita.servicio.nombre} no pudo ser confirmada ❌\nMotivo: ${motivo}`
-        : `Tu cita de ${cita.servicio.nombre} no pudo ser confirmada ❌`,
-      CANCELADA: motivo
-        ? `Tu cita de ${cita.servicio.nombre} fue cancelada\nMotivo: ${motivo}`
-        : `Tu cita de ${cita.servicio.nombre} fue cancelada`,
+    const accionTexto = estado === 'RECHAZADA'
+      ? `Tu cita de ${cita.servicio.nombre} no pudo ser confirmada ❌`
+      : `Tu cita de ${cita.servicio.nombre} fue cancelada`
+
+    let mensajeNotif = motivo ? `${accionTexto}\nMotivo: ${motivo}` : accionTexto
+
+    if (alternativas?.length) {
+      const horasFormateadas = alternativas.map(h =>
+        new Date(h).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })
+      ).join(' · ')
+      mensajeNotif += `\n\n📅 Tere propone reagendar a: ${horasFormateadas}`
     }
 
     await enviarNotificacion(
       cita.clienteId,
       'Actualización de tu cita',
-      mensajes[estado] || 'Tu cita fue actualizada',
+      mensajeNotif,
       'CANCELACION'
     )
 
@@ -430,4 +438,102 @@ const horasOcupadas = async (req, res) => {
 }
 
 
-module.exports = { solicitarCita, listarCitas, cambiarEstado, cancelarCita, historial, horasOcupadas }
+// POST /api/citas/:id/reagendar — cliente acepta un horario alternativo propuesto
+const reagendarCita = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { fechaHora } = req.body
+    const clienteId = req.usuario.id
+
+    const citaOriginal = await prisma.cita.findUnique({
+      where: { id },
+      include: { servicio: true }
+    })
+
+    if (!citaOriginal) return error(res, 'Cita no encontrada', 404)
+    if (citaOriginal.clienteId !== clienteId) return error(res, 'No autorizado', 403)
+    if (!['RECHAZADA', 'CANCELADA'].includes(citaOriginal.estado)) {
+      return error(res, 'Solo se puede reagendar desde una cita rechazada o cancelada', 400)
+    }
+
+    const alternativas = citaOriginal.horariosAlternativos
+    if (!alternativas || !Array.isArray(alternativas) || alternativas.length === 0) {
+      return error(res, 'No hay horarios alternativos propuestos', 400)
+    }
+
+    const fechaElegidaMs = new Date(fechaHora).getTime()
+    const alternativaValida = alternativas.some(h => new Date(h).getTime() === fechaElegidaMs)
+    if (!alternativaValida) return error(res, 'El horario elegido no está entre los propuestos', 400)
+
+    const admin = await prisma.usuario.findFirst({ where: { rol: 'ADMIN', activo: true } })
+    if (!admin) return error(res, 'No hay estilista disponible', 503)
+
+    const fecha = new Date(fechaHora)
+    const nuevaFin = new Date(fecha.getTime() + citaOriginal.servicio.duracionMin * 60000)
+
+    const fechaECT = new Date(fecha.getTime() - 5 * 3600000)
+    const dateStr = fechaECT.toISOString().split('T')[0]
+    const inicioDia = new Date(`${dateStr}T05:00:00.000Z`)
+    const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000 - 1)
+
+    let nuevaCita
+    try {
+      nuevaCita = await prisma.$transaction(async (tx) => {
+        const citasDelDia = await tx.cita.findMany({
+          where: {
+            estilistaId: admin.id,
+            estado: { in: ['PENDIENTE', 'APROBADA'] },
+            fechaHora: { gte: inicioDia, lte: finDia }
+          },
+          include: { servicio: { select: { duracionMin: true } } }
+        })
+
+        const hayConflicto = citasDelDia.some(c => {
+          const existStart = new Date(c.fechaHora).getTime()
+          const existEnd = existStart + c.servicio.duracionMin * 60000
+          return fecha.getTime() < existEnd && nuevaFin.getTime() > existStart
+        })
+
+        if (hayConflicto) {
+          const err = new Error('Ese horario ya no está disponible. Por favor contacta a Tere.')
+          err.code = 'SLOT_OCUPADO'
+          throw err
+        }
+
+        // Limpiar alternativas de la cita original para que no vuelva a aparecer
+        await tx.cita.update({
+          where: { id },
+          data: { horariosAlternativos: null }
+        })
+
+        return tx.cita.create({
+          data: {
+            clienteId,
+            servicioId: citaOriginal.servicioId,
+            estilistaId: admin.id,
+            fechaHora: fecha,
+            notas: citaOriginal.notas,
+          },
+          include: { servicio: true }
+        })
+      }, { isolationLevel: 'Serializable' })
+    } catch (txErr) {
+      if (txErr.code === 'SLOT_OCUPADO') return error(res, txErr.message, 409)
+      throw txErr
+    }
+
+    await enviarNotificacion(
+      admin.id,
+      'Reagendamiento de cita',
+      `${req.usuario.nombre} reagendó su cita de ${nuevaCita.servicio.nombre} para el ${fecha.toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' })}`,
+      'REPROGRAMACION'
+    )
+
+    return creado(res, nuevaCita)
+  } catch (e) {
+    console.error(e)
+    return error(res, 'Error al reagendar cita')
+  }
+}
+
+module.exports = { solicitarCita, listarCitas, cambiarEstado, cancelarCita, historial, horasOcupadas, reagendarCita }

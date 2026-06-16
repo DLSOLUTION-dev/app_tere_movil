@@ -17,6 +17,7 @@ export default function InicioCliente() {
 
   const [citas, setCitas] = useState([])
   const [cargando, setCargando] = useState(true)
+  const [reagendando, setReagendando] = useState(null) // id de la cita procesando
 
   useFocusEffect(
     useCallback(() => {
@@ -36,8 +37,7 @@ export default function InicioCliente() {
   }
 
   const cancelarCita = (cita) => {
-    // Verificar horas restantes en el frontend también
-    const horasRestantes = (new Date(cita.fechaHora) - new Date()) / 36e5
+    const horasRestantes = (new Date(cita.fechaHora) - Date.now()) / 36e5
 
     if (horasRestantes < 3) {
       return Alert.alert(
@@ -63,10 +63,7 @@ export default function InicioCliente() {
                 '¿Deseas reagendar para otra fecha?',
                 [
                   { text: 'Ahora no', style: 'cancel' },
-                  {
-                    text: 'Reagendar',
-                    onPress: () => router.push('/(client)/nueva-cita')
-                  }
+                  { text: 'Reagendar', onPress: () => router.push('/(client)/nueva-cita') }
                 ]
               )
             } catch (e) {
@@ -78,11 +75,51 @@ export default function InicioCliente() {
     )
   }
 
+  const elegirHorario = (cita, fechaISO) => {
+    const fechaFormateada = new Date(fechaISO).toLocaleString('es-EC', {
+      dateStyle: 'medium', timeStyle: 'short'
+    })
+    Alert.alert(
+      'Confirmar reagendamiento',
+      `¿Agendar para el ${fechaFormateada}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, confirmar',
+          onPress: async () => {
+            setReagendando(cita.id)
+            try {
+              await api.post(`/citas/${cita.id}/reagendar`, { fechaHora: fechaISO })
+              await cargarCitas()
+              Alert.alert('¡Listo!', `Tu nueva cita fue agendada para el ${fechaFormateada}. Espera la confirmación de Tere.`)
+            } catch (e) {
+              Alert.alert('Error', e.response?.data?.mensaje || 'No se pudo reagendar la cita')
+            } finally {
+              setReagendando(null)
+            }
+          }
+        }
+      ]
+    )
+  }
+
   const puedeCancelar = (cita) => {
     if (!['PENDIENTE', 'APROBADA'].includes(cita.estado)) return false
-    const horasRestantes = (new Date(cita.fechaHora) - new Date()) / 36e5
+    const horasRestantes = (new Date(cita.fechaHora) - Date.now()) / 36e5
     return horasRestantes >= 3
   }
+
+  // Citas rechazadas/canceladas que tienen horarios alternativos propuestos
+  const citasConAlternativas = citas.filter(c =>
+    ['RECHAZADA', 'CANCELADA'].includes(c.estado) &&
+    Array.isArray(c.horariosAlternativos) &&
+    c.horariosAlternativos.length > 0
+  )
+
+  // Citas activas (sin completadas/canceladas/rechazadas)
+  const citasActivas = citas.filter(c =>
+    !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(c.estado)
+  )
 
   const renderCita = ({ item }) => (
     <View style={styles.citaCard}>
@@ -111,7 +148,6 @@ export default function InicioCliente() {
         </View>
       )}
 
-      {/* Botón cancelar solo si aplica */}
       {puedeCancelar(item) && (
         <TouchableOpacity
           style={styles.btnCancelar}
@@ -122,12 +158,40 @@ export default function InicioCliente() {
         </TouchableOpacity>
       )}
 
-      {/* Mensaje si ya no puede cancelar */}
       {['PENDIENTE', 'APROBADA'].includes(item.estado) && !puedeCancelar(item) && (
         <Text style={styles.noCancelarTexto}>
           ⚠️ Ya no se puede cancelar — faltan menos de 3 horas
         </Text>
       )}
+    </View>
+  )
+
+  const renderAlternativas = (cita) => (
+    <View key={cita.id} style={styles.reagendCard}>
+      <View style={styles.reagendHeader}>
+        <Ionicons name="calendar-outline" size={18} color="#6366f1" />
+        <Text style={styles.reagendTitulo}>Tere propone reagendar</Text>
+      </View>
+      <Text style={styles.reagendServicio}>{cita.servicio?.nombre}</Text>
+      {cita.motivoCancelacion ? (
+        <Text style={styles.reagendMotivo}>Motivo: {cita.motivoCancelacion}</Text>
+      ) : null}
+      <Text style={styles.reagendElige}>Elige un horario disponible:</Text>
+      <View style={styles.reagendSlots}>
+        {cita.horariosAlternativos.map((iso) => (
+          <TouchableOpacity
+            key={iso}
+            style={[styles.slotBtn, reagendando === cita.id && { opacity: 0.5 }]}
+            onPress={() => elegirHorario(cita, iso)}
+            disabled={reagendando === cita.id}
+          >
+            <Ionicons name="time-outline" size={14} color="#6366f1" />
+            <Text style={styles.slotTexto}>
+              {new Date(iso).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   )
 
@@ -153,19 +217,34 @@ export default function InicioCliente() {
 
       {cargando
         ? <LoadingScreen />
-        : <FlatList
-          data={citas.filter(c => !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(c.estado))}
-          keyExtractor={(i) => i.id}
-          renderItem={renderCita}
-          ListEmptyComponent={
-            <View style={styles.vacio}>
-              <Ionicons name="calendar-outline" size={48} color="#ddd" />
-              <Text style={styles.vacioTexto}>No tienes citas activas</Text>
-              <Text style={styles.vacioSub}>Agenda una nueva cita desde abajo</Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: 100 }}
-        />
+        : (
+          <FlatList
+            data={citasActivas}
+            keyExtractor={(i) => i.id}
+            renderItem={renderCita}
+            ListHeaderComponent={
+              citasConAlternativas.length > 0 ? (
+                <View style={styles.alternativasSeccion}>
+                  <View style={styles.alternativasHeaderRow}>
+                    <Ionicons name="refresh-circle-outline" size={20} color="#6366f1" />
+                    <Text style={styles.alternativasHeaderTexto}>Reagendamiento disponible</Text>
+                  </View>
+                  {citasConAlternativas.map(renderAlternativas)}
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              citasConAlternativas.length === 0 ? (
+                <View style={styles.vacio}>
+                  <Ionicons name="calendar-outline" size={48} color="#ddd" />
+                  <Text style={styles.vacioTexto}>No tienes citas activas</Text>
+                  <Text style={styles.vacioSub}>Agenda una nueva cita desde abajo</Text>
+                </View>
+              ) : null
+            }
+            contentContainerStyle={{ paddingBottom: 100 }}
+          />
+        )
       }
 
       <TouchableOpacity
@@ -201,4 +280,17 @@ const styles = StyleSheet.create({
   vacioSub: { fontSize: 13, color: '#ccc' },
   fab: { position: 'absolute', bottom: 32, right: 24, backgroundColor: '#1a1a2e', borderRadius: 30, paddingVertical: 14, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 8 },
   fabTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  // Sección de reagendamiento
+  alternativasSeccion: { margin: 12, marginBottom: 4 },
+  alternativasHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  alternativasHeaderTexto: { fontSize: 13, fontWeight: '700', color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.5 },
+  reagendCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: '#6366f1' },
+  reagendHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  reagendTitulo: { fontSize: 14, fontWeight: '700', color: '#6366f1' },
+  reagendServicio: { fontSize: 15, fontWeight: '600', color: '#1a1a2e', marginBottom: 4 },
+  reagendMotivo: { fontSize: 12, color: '#888', fontStyle: 'italic', marginBottom: 8 },
+  reagendElige: { fontSize: 13, color: '#555', marginBottom: 10 },
+  reagendSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  slotBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#eef2ff', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#c7d2fe' },
+  slotTexto: { fontSize: 13, color: '#6366f1', fontWeight: '600' },
 })

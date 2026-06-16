@@ -86,8 +86,9 @@ model Cita {
   fechaHora         DateTime   @map("fecha_hora")
   estado            EstadoCita @default(PENDIENTE)
   notas             String?
-  motivoCancelacion String?    @map("motivo_cancelacion")
-  createdAt         DateTime   @default(now()) @map("created_at")
+  motivoCancelacion    String?    @map("motivo_cancelacion")
+  horariosAlternativos Json?      @map("horarios_alternativos")
+  createdAt            DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
   cliente   Usuario  @relation("CitasCliente",   fields: [clienteId],   references: [id])

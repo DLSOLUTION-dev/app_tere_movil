@@ -1,6 +1,6 @@
 const router = require('express').Router()
 const { body } = require('express-validator')
-const { solicitarCita, listarCitas, cambiarEstado, cancelarCita, historial, horasOcupadas } = require('../controllers/citas.controller')
+const { solicitarCita, listarCitas, cambiarEstado, cancelarCita, historial, horasOcupadas, reagendarCita } = require('../controllers/citas.controller')
 const { autenticar, soloAdmin } = require('../middlewares/auth.middleware')
 const { verificarPropietarioCita } = require('../middlewares/rls.middleware')
 const { validar } = require('../middlewares/validar.middleware')
@@ -19,6 +19,9 @@ router.patch('/:id/estado', soloAdmin, [
   body('pago.metodoPago').if(body('estado').equals('COMPLETADA')).isIn(['EFECTIVO', 'TRANSFERENCIA']).withMessage('Método de pago inválido'),
 ], validar, cambiarEstado)
 router.delete('/:id', verificarPropietarioCita, cancelarCita)
+router.post('/:id/reagendar', [
+  body('fechaHora').isISO8601().toDate().withMessage('Fecha y hora inválida'),
+], validar, reagendarCita)
 router.get('/historial', historial)
 
 module.exports = router

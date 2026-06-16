@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import api from '../../services/api'
 import useAuthStore from '../../store/authStore'
@@ -19,6 +19,12 @@ export default function Dashboard() {
     const [cargando, setCargando] = useState(true)
 
     useEffect(() => { cargarDatos() }, [])
+
+    useFocusEffect(useCallback(() => {
+        api.get('/notificaciones/mias')
+            .then(res => setNoLeidas(res.data.data.filter(n => !n.leida).length))
+            .catch(() => {})
+    }, []))
 
     const cargarDatos = async () => {
         const [resCaja, resCitas, resNotif] = await Promise.allSettled([
