@@ -7,7 +7,16 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { Calendar } from 'react-native-calendars'
+import { Calendar, LocaleConfig } from 'react-native-calendars'
+
+LocaleConfig.locales['es'] = {
+    monthNames: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+    monthNamesShort: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],
+    dayNames: ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],
+    dayNamesShort: ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],
+    today: 'Hoy',
+}
+LocaleConfig.defaultLocale = 'es'
 import api from '../../services/api'
 import { ESTADO_CITA_LABEL, ESTADO_CITA_COLOR } from '../../types'
 import LoadingScreen from '../../components/shared/LoadingScreen'
@@ -59,9 +68,9 @@ export default function CitasAdmin() {
 
     const [ofrecerReagendamiento, setOfrecerReagendamiento] = useState(false)
     const [horariosAlternativos, setHorariosAlternativos] = useState([])
-    const [pickerVisible, setPickerVisible] = useState(false)
+    const [modalPicker, setModalPicker] = useState(false)
     const [pickerMode, setPickerMode] = useState('date')
-    const pickerTempFecha = useRef(new Date())
+    const [pickerTempDate, setPickerTempDate] = useState(new Date())
 
     useFocusEffect(useCallback(() => { cargarCitas() }, []))
 
@@ -77,38 +86,32 @@ export default function CitasAdmin() {
     }
 
     const abrirPickerAlternativo = () => {
-        pickerTempFecha.current = new Date()
+        setPickerTempDate(new Date())
         setPickerMode('date')
-        setPickerVisible(true)
+        setModalPicker(true)
     }
 
-    const onPickerChange = (event, selectedDate) => {
-        if (Platform.OS === 'android') {
-            setPickerVisible(false)
-            if (event.type === 'dismissed') return
-            if (pickerMode === 'date') {
-                pickerTempFecha.current = selectedDate
-                setPickerMode('time')
-                setTimeout(() => setPickerVisible(true), 50)
-            } else {
-                const final = new Date(pickerTempFecha.current)
-                final.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0)
-                setHorariosAlternativos(prev => [...prev, final])
-                setPickerMode('date')
-            }
+    const onPickerChange = (_, selectedDate) => {
+        if (selectedDate) setPickerTempDate(selectedDate)
+    }
+
+    const avanzarPicker = () => {
+        if (pickerMode === 'date') {
+            setPickerMode('time')
         } else {
-            if (selectedDate) pickerTempFecha.current = selectedDate
+            setHorariosAlternativos(prev => [...prev, pickerTempDate])
+            setModalPicker(false)
+            setPickerMode('date')
         }
+    }
+
+    const cancelarPicker = () => {
+        setModalPicker(false)
+        setPickerMode('date')
     }
 
     const quitarAlternativa = (iso) =>
         setHorariosAlternativos(prev => prev.filter(d => d.toISOString() !== iso))
-
-    const confirmarPickerIOS = () => {
-        const final = new Date(pickerTempFecha.current)
-        setHorariosAlternativos(prev => [...prev, final])
-        setPickerVisible(false)
-    }
 
     const cambiarEstado = (id, estado, cita) => {
         if (estado === 'RECHAZADA' || estado === 'CANCELADA') {
@@ -419,7 +422,7 @@ export default function CitasAdmin() {
                     <TouchableOpacity
                         style={theme.modalOverlay}
                         activeOpacity={1}
-                        onPress={() => { Keyboard.dismiss(); setModalMotivo(false) }}
+                        onPress={() => { if (modalPicker) return; Keyboard.dismiss(); setModalMotivo(false) }}
                     >
                         <View style={theme.modal} onStartShouldSetResponder={() => true}>
                             <Text style={theme.modalTitulo}>
@@ -511,24 +514,38 @@ export default function CitasAdmin() {
                             </View>
                         </View>
                     </TouchableOpacity>
+
+                {/* Picker dentro del mismo Modal — sin conflicto Android */}
+                {modalPicker && (
+                    <View style={styles.pickerOverlay}>
+                        <View style={styles.pickerContainer}>
+                            <Text style={styles.pickerTitulo}>
+                                {pickerMode === 'date' ? '📅 Selecciona la fecha' : '🕐 Selecciona la hora'}
+                            </Text>
+                            <DateTimePicker
+                                value={pickerTempDate}
+                                mode={pickerMode}
+                                display="spinner"
+                                minimumDate={new Date()}
+                                onChange={onPickerChange}
+                                locale="es-EC"
+                                style={{ width: '100%' }}
+                            />
+                            <View style={styles.pickerBotones}>
+                                <TouchableOpacity style={styles.pickerBtnCancelar} onPress={cancelarPicker}>
+                                    <Text style={styles.pickerBtnCancelarTexto}>Cancelar</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.pickerBtnConfirmar} onPress={avanzarPicker}>
+                                    <Text style={styles.pickerBtnConfirmarTexto}>
+                                        {pickerMode === 'date' ? 'Siguiente →' : 'Confirmar'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                )}
                 </KeyboardAvoidingView>
             </Modal>
-
-            {/* DateTimePicker fuera del modal para evitar problemas de z-index en Android */}
-            {pickerVisible && (
-                <DateTimePicker
-                    value={pickerTempFecha.current}
-                    mode={pickerMode}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    minimumDate={new Date()}
-                    onChange={onPickerChange}
-                />
-            )}
-            {Platform.OS === 'ios' && pickerVisible && (
-                <TouchableOpacity style={styles.iosConfirmarBtn} onPress={confirmarPickerIOS}>
-                    <Text style={styles.iosConfirmarTexto}>Confirmar</Text>
-                </TouchableOpacity>
-            )}
 
             {/* Modal de pago */}
             <Modal visible={modalPago} animationType="slide" transparent>
@@ -652,8 +669,14 @@ const styles = StyleSheet.create({
     alternativaTexto: { flex: 1, fontSize: 13, color: COLORS.primary, fontWeight: '500' },
     agregarHorarioBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
     agregarHorarioTexto: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
-    iosConfirmarBtn: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32 },
-    iosConfirmarTexto: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+    pickerOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+    pickerContainer: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+    pickerTitulo: { fontSize: 16, fontWeight: '700', color: COLORS.primary, textAlign: 'center', marginBottom: 8 },
+    pickerBotones: { flexDirection: 'row', gap: 12, marginTop: 16 },
+    pickerBtnCancelar: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: COLORS.background, alignItems: 'center' },
+    pickerBtnCancelarTexto: { color: COLORS.textMuted, fontWeight: '600', fontSize: 14 },
+    pickerBtnConfirmar: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
+    pickerBtnConfirmarTexto: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
     leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
     leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     leyendaDot: { width: 8, height: 8, borderRadius: 4 },
